@@ -4,3 +4,15 @@ import torchvision.models as models
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import torch.nn.functional as F
+
+
+class EncoderCNN(nn.Module):
+    def __init__(self):
+        super(EncoderCNN, self).__init__()
+
+        resnet = models.resnet101(pretrained=True)
+        local_features_mod = list(resnet.children())[:8]
+        global_features_mod = list(resnet.children())[8]
+
+        self.resnet_local = nn.Sequential(*local_features_mod)
+        self.resnet_global = nn.Sequential(global_features_mod)
