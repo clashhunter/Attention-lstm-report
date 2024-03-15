@@ -5,6 +5,23 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import torch.nn.functional as F
 
+def clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
+
+def attention(query, key, value, mask=None, dropout=None):
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim=-1)
+    if dropout is not None:
+        p_attn = dropout(p_attn)
+    return torch.matmul(p_attn, value), p_attn
+
+ def subsequent_mask(size):
+    attn_shape = (1, size, size)
+    subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype('uint8')
+    return torch.from_numpy(subsequent_mask) == 0
 
 class EncoderCNN(nn.Module):
     def __init__(self):
@@ -16,3 +33,8 @@ class EncoderCNN(nn.Module):
 
         self.resnet_local = nn.Sequential(*local_features_mod)
         self.resnet_global = nn.Sequential(global_features_mod)
+    def forward(self, frontal_image):
+        with torch.no_grad():
+            local_features = self.resnet_local(frontal_image)
+            global_features = self.resnet_global(local_features).squeeze()
+        return global_features
