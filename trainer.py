@@ -1,4 +1,3 @@
-# Referenced from https://github.com/yunjey/pytorch-tutorial
 import argparse
 import torch
 import torchvision.transforms as transforms
@@ -14,22 +13,20 @@ from metrics import compute_metrics, generate_text_file
 from utils.logger import create_logger
 from IUdata.build_vocab import JsonReader, Vocabulary
 
-# Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def train_net(num_run, logger, args):
     logger.info("Start the {}th run of the same model".format(num_run + 1))
 
-    # Create model directory
+
     if not os.path.exists(args.model_path):
         os.makedirs(args.model_path)
 
-    # create log path
     if not os.path.exists(args.log_path):
         os.makedirs(args.log_path)
 
-    # Image preprocessing, normalization for the pretrained resnet
+
     train_transform = transforms.Compose([
         transforms.Resize(args.resize_size),
         transforms.RandomCrop(args.crop_size),
@@ -40,13 +37,12 @@ def train_net(num_run, logger, args):
         vocab = pickle.load(f)
         vocab_size = len(vocab)
 
-    # Data loader
     data_loader = get_loader(args.image_dir, args.json_dir,
                              vocab, train_transform, args.batch_size,
                              args.num_workers, args.max_impression_len,
                              args.max_sen_num, args.max_single_sen_len,
                              shuffle=True)
-    # Models
+
     image_encoder = EncoderCNN().train().to(device)
     impression_decoder = Impression_Decoder(args.embed_size, args.hidden_size,
                                             vocab_size, args.imp_layers_num,
@@ -58,28 +54,25 @@ def train_net(num_run, logger, args):
                                         args.num_global_features, args.num_regions, args.num_conv1d_out, args.teach_rate,
                                         args.max_single_sen_len, args.max_sen_num, dropout_rate=args.dropout_rate).train().to(device)
 
-    # Initialize the best weights
     best_img_encoder = copy.deepcopy(image_encoder.state_dict())
     best_imp_decoder = copy.deepcopy(impression_decoder.state_dict())
     best_fin_decoder = copy.deepcopy(finding_decoder.state_dict())
     best_epoch = 0
 
-    # Loss and optimizer
+
     criterion = nn.CrossEntropyLoss()
 
 
-    # no fc layers
     params_imp = list(impression_decoder.parameters())
     params_fin = list(finding_decoder.parameters())
 
     optimizer_imp = torch.optim.Adam(params_imp, lr=args.learning_rate)
     optimizer_fin = torch.optim.Adam(params_fin, lr=args.learning_rate)
-    # Decay LR by a factor of 0.1 every 10 epochs
+
     scheduler_imp = torch.optim.lr_scheduler.StepLR(optimizer_imp, step_size=args.sche_step_size, gamma=args.sche_decay)
     scheduler_fin = torch.optim.lr_scheduler.StepLR(optimizer_fin, step_size=args.sche_step_size, gamma=args.sche_decay)
 
-    # training process
-    # initialize all metric values to zero
+
     imp_fin_bleu = [0, 0, 0, 0]
     imp_fin_meteor, imp_fin_rouge, imp_fin_cider = 0, 0, 0
     best_bleu = [0, 0, 0, 0]
@@ -94,14 +87,14 @@ def train_net(num_run, logger, args):
             frontal_imgs = frontal_imgs.to(device)
             impressions = impressions.to(device)
             findings = findings.to(device)
-            # impression
+
             global_feas = image_encoder(frontal_imgs)
             imp_targets, predicted_imp, global_topic_vec = impression_decoder(global_feas, impressions, imp_lengths)
             imp_loss = criterion(predicted_imp, imp_targets)
             fin_targets, predicted_fin = finding_decoder(global_feas, global_topic_vec, findings, fin_lengths)
             fin_loss = criterion(predicted_fin, fin_targets)
 
-            # if args.train_separately:
+
             optimizer_imp.zero_grad()
             optimizer_fin.zero_grad()
             imp_loss.backward()
@@ -109,7 +102,6 @@ def train_net(num_run, logger, args):
             optimizer_imp.step()
             optimizer_fin.step()
 
-            # Print log info
             if i % args.log_step == 0:
                 # if args.train_separately:
                 print('Epoch [{}/{}], Step [{}/{}], Imp Loss: {:.4f}, Imp Perplexity: {:5.4f}'
@@ -141,14 +133,14 @@ def train_net(num_run, logger, args):
         scheduler_imp.step()
         scheduler_fin.step()
 
-    # save the best model
+
     torch.save(best_img_encoder, os.path.join(
         args.model_path, '{}-image_encoder-{}.ckpt'.format(num_run + 1, best_epoch + 1)))
     torch.save(best_imp_decoder, os.path.join(
         args.model_path, '{}-impression_decoder-{}.ckpt'.format(num_run + 1, best_epoch + 1)))
     torch.save(best_fin_decoder, os.path.join(
         args.model_path, '{}-finding_decoder-{}.ckpt'.format(num_run + 1, best_epoch + 1)))
-    # generate the ground truth and predicted result
+
     generate_text_file(best_pre_imps_lst, best_pre_fins_lst, best_img_id_lst, num_run, args)
     logger.info(
         "Values of metric for the best model are: \n"
@@ -164,7 +156,7 @@ def train_net(num_run, logger, args):
 
 
 def test_in_training(image_encoder, impression_decoder, finding_decoder, vocab, args):
-    # testing dataset loader
+
     test_transforms = transforms.Compose([
         transforms.Resize(args.resize_size),
         transforms.CenterCrop(args.crop_size),
@@ -177,7 +169,7 @@ def test_in_training(image_encoder, impression_decoder, finding_decoder, vocab, 
                                   args.max_sen_num, args.max_single_sen_len, shuffle=False)
     vocab_size = len(vocab)
 
-    # Models
+
     image_encoder_eval = EncoderCNN().eval().to(device)
     impression_decoder_eval = Impression_Decoder(args.embed_size, args.hidden_size,
                                                  vocab_size, args.imp_layers_num,
@@ -191,7 +183,7 @@ def test_in_training(image_encoder, impression_decoder, finding_decoder, vocab, 
     image_encoder_eval.load_state_dict(image_encoder.state_dict())
     impression_decoder_eval.load_state_dict(impression_decoder.state_dict())
     finding_decoder_eval.load_state_dict(finding_decoder.state_dict())
-    # Generate impressions and findings
+
     pre_imps_lst, pre_fins_lst, img_id_list = [], [], []
     for i, (images, images_ids, _, _, _, _) in enumerate(eval_data_loader):
         frontal_imgs = images.to(device)
@@ -265,12 +257,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args)
-    # Record the training process and values
+
     logger = create_logger(args.log_path)
     logger.info('=' * 55)
     logger.info(args)
     logger.info('=' * 55)
-    # The time of training the same model to get average results
+
     num_run = 3
     best_bleu_lst = []
     best_meteor_lst = []
