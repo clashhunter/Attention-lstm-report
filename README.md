@@ -5,21 +5,6 @@ Medical imaging report
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 Data
 
 Indiana University Chest X-ray Acquisition
