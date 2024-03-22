@@ -50,7 +50,10 @@ proportion into a training set, 10% validation set and 20% test set.
 
 Train
 
-
+Set the Multi Attention Layer
+to 12, model parameters set to 512, image data size set to
+224*224, the learning rate is set to 0.0001, the dropout_rate is set to 0.2, and the number of training rounds is set to 50.0.
+rate is set to 0.2, and the number of training rounds is set to 50.
 
 
 
