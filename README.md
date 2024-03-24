@@ -68,5 +68,6 @@ rate is set to 0.2, and the number of training rounds is set to 50.
 
 
 Citation
+https://github.com/tengfeixue-victor/Medical-Report-Generation
 
 
